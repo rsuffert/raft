@@ -1,5 +1,5 @@
-module github.com/eliben/raft
+module pucrs/sd
 
-go 1.23.1
+go 1.24.1
 
 require github.com/fortytw2/leaktest v1.3.0
