@@ -59,7 +59,7 @@ func NewHarness(t *testing.T, n int) *Harness {
 
 		commitChans[i] = make(chan CommitEntry)
 		ns[i] = NewServer(i, peerIds, ready, commitChans[i])
-		ns[i].Serve()
+		ns[i].Serve(":0") // let the OS assign a free port.
 	}
 
 	// Connect all peers to each other.

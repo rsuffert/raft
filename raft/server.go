@@ -53,7 +53,16 @@ func NewServer(serverId int, peerIds []int, ready <-chan any, commitChan chan<- 
 	return s
 }
 
-func (s *Server) Serve() {
+// Submit sends a command to the ConsensusModule for processing. It returns true
+// if this server is the leader and therefore the command was submitted successfully,
+// or false if this server is not the leader.
+func (s *Server) Submit(command any) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cm.Submit(command)
+}
+
+func (s *Server) Serve(listenAddr string) {
 	s.mu.Lock()
 	s.cm = NewConsensusModule(s.serverId, s.peerIds, s, s.ready, s.commitChan)
 
@@ -64,7 +73,7 @@ func (s *Server) Serve() {
 	s.rpcServer.RegisterName("ConsensusModule", s.rpcProxy)
 
 	var err error
-	s.listener, err = net.Listen("tcp", ":0")
+	s.listener, err = net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
