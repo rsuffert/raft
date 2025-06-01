@@ -48,7 +48,7 @@ go run main.go -id=<NODE_ID> -listen=<IP:PORT> -peers=<PEER_LIST>
 - `<IP:PORT>`: The address this node should listen on (e.g., 127.0.0.1:9000).
 - `<PEER_LIST>`: Comma-separated list of peer nodes in the format `id=ip:port` (e.g., `1=127.0.0.1:9001,2=127.0.0.1:9002`).
 
-For instance, in order to run three RAFT servers locally on your machine, you can run each of the three comands below in a separate terminal window.
+For instance, in order to run three RAFT servers locally on your machine, you can run each of the three commands below in a separate terminal window.
 
 ```bash
 go run main.go -id=0 -listen=127.0.0.1:9000 -peers=1=127.0.0.1:9001,2=127.0.0.1:9002
