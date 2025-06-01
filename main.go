@@ -53,12 +53,15 @@ func main() {
 	close(ready)
 
 	// begin submitting commands for consensus randomly and print those that are committed
-	go randomlySubmitCommands(server)
+	go randomlySubmitCommands(server, id)
 	for entry := range commitChan {
-		fmt.Printf("Committed: %+v\n", entry)
+		log.Printf("committed: %+v\n", entry)
 	}
 }
 
+// parsePeersStr parses a comma-separated string of peer definitions into a slice of peer IDs and a map from peer IDs to their addresses.
+// The input string should be in the format "peerID1=ip1:port1,peerID2=ip2:port2,..."
+// Returns a slice of peer IDs, a map from peer IDs to their corresponding addresses, and an error if the input format is invalid.
 func parsePeersStr(peers string) (peerIds []int, peerIdsToAddrs map[int]string, err error) {
 	peerIds = make([]int, 0)
 	peerIdsToAddrs = make(map[int]string)
@@ -85,6 +88,9 @@ func parsePeersStr(peers string) (peerIds []int, peerIdsToAddrs map[int]string, 
 	return peerIds, peerIdsToAddrs, nil
 }
 
+// connectToPeer attempts to establish a connection to a peer Raft server with the specified peerId and peerAddr.
+// It retries the connection up to 5 times with exponential backoff, waiting 1 second between attempts.
+// Returns an error if the connection could not be established after all retries.
 func connectToPeer(server *raft.Server, peerId int, peerAddr string) error {
 	return retry.Do(
 		func() error {
@@ -103,10 +109,19 @@ func connectToPeer(server *raft.Server, peerId int, peerAddr string) error {
 	)
 }
 
-func randomlySubmitCommands(server *raft.Server) {
+// randomlySubmitCommands periodically generates and submits random commands to the given Raft server.
+// Each command is uniquely identified by the peerId and the current timestamp in milliseconds.
+// The function runs indefinitely, waiting a random interval between 3 and 7 seconds before each submission.
+// If the command is successfully submitted, a success message is logged; otherwise, a failure message is logged.
+//
+// Parameters:
+//
+//	server - Pointer to the raft.Server instance to which commands will be submitted.
+//	peerId - Integer identifier for the peer generating the commands.
+func randomlySubmitCommands(server *raft.Server, peerId int) {
 	for {
 		time.Sleep(time.Duration(3+rand.Intn(5)) * time.Second) // Random delay between 3 and 7 seconds
-		cmd := fmt.Sprintf("auto-cmd-%d", rand.Intn(10000))
+		cmd := fmt.Sprintf("auto-cmd-%d-%d", peerId, time.Now().UnixMilli())
 		if ok := server.Submit(cmd); ok {
 			log.Printf("submitted command: %s", cmd)
 		} else {
