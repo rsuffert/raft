@@ -29,7 +29,9 @@ func main() {
 	}
 
 	commitChan := make(chan raft.CommitEntry)
+	defer close(commitChan)
 	ready := make(chan any)
+
 	server := raft.NewServer(id, peerIds, ready, commitChan)
 	server.Serve(listen)
 
