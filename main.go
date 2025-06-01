@@ -95,7 +95,6 @@ func connectToPeer(server *raft.Server, peerId int, peerAddr string) error {
 			if err := server.ConnectToPeer(peerId, tcpAddr); err != nil {
 				return err
 			}
-			log.Printf("connected to peer %d at %s", peerId, peerAddr)
 			return nil
 		},
 		retry.Attempts(5),

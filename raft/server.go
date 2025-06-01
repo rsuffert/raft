@@ -59,9 +59,6 @@ func NewServer(serverId int, peerIds []int, ready <-chan any, commitChan chan<- 
 func (s *Server) Submit(command any) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cm == nil {
-		return false
-	}
 	return s.cm.Submit(command)
 }
 
