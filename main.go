@@ -9,6 +9,7 @@ import (
 	"pucrs/sd/raft"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -35,12 +36,24 @@ func main() {
 	server := raft.NewServer(id, peerIds, ready, commitChan)
 	server.Serve(listen)
 
-	connectToPeers(server, peerAddrs)
-	randomlySubmitCommands(server)
-
+	// asynchronously connect to peers
+	var wg sync.WaitGroup
+	for peerId, peerAddr := range peerAddrs {
+		wg.Add(1)
+		go func(peerId int, peerAddr string) {
+			defer wg.Done()
+			if err := connectToPeer(server, peerId, peerAddr); err != nil {
+				log.Printf("failed to connect to peer %d at %s: %v", peerId, peerAddr, err)
+			} else {
+				log.Printf("successfully connected to peer %d at %s", peerId, peerAddr)
+			}
+		}(peerId, peerAddr)
+	}
+	wg.Wait()
 	close(ready)
 
-	// Print committed entries
+	// begin submitting commands for consensus randomly and print those that are committed
+	go randomlySubmitCommands(server)
 	for entry := range commitChan {
 		fmt.Printf("Committed: %+v\n", entry)
 	}
@@ -72,42 +85,33 @@ func parsePeersStr(peers string) (peerIds []int, peerIdsToAddrs map[int]string, 
 	return peerIds, peerIdsToAddrs, nil
 }
 
-func connectToPeers(server *raft.Server, peerIdsToAddrs map[int]string) {
-	for id, addr := range peerIdsToAddrs {
-		go func(id int, addr string) {
-			err := retry.Do(
-				func() error {
-					tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-					if err != nil {
-						return err
-					}
-					if err := server.ConnectToPeer(id, tcpAddr); err != nil {
-						return err
-					}
-					log.Printf("connected to peer %d at %s", id, addr)
-					return nil
-				},
-				retry.Attempts(5),
-				retry.DelayType(retry.BackOffDelay),
-				retry.Delay(1*time.Second),
-			)
+func connectToPeer(server *raft.Server, peerId int, peerAddr string) error {
+	return retry.Do(
+		func() error {
+			tcpAddr, err := net.ResolveTCPAddr("tcp", peerAddr)
 			if err != nil {
-				log.Printf("exhausted all attempts to connect to peer %d at %s: %v", id, addr, err)
+				return err
 			}
-		}(id, addr)
-	}
+			if err := server.ConnectToPeer(peerId, tcpAddr); err != nil {
+				return err
+			}
+			log.Printf("connected to peer %d at %s", peerId, peerAddr)
+			return nil
+		},
+		retry.Attempts(5),
+		retry.DelayType(retry.BackOffDelay),
+		retry.Delay(1*time.Second),
+	)
 }
 
 func randomlySubmitCommands(server *raft.Server) {
-	go func() {
-		for {
-			time.Sleep(time.Duration(3+rand.Intn(5)) * time.Second) // Random delay between 3 and 7 seconds
-			cmd := fmt.Sprintf("auto-cmd-%d", rand.Intn(10000))
-			if ok := server.Submit(cmd); ok {
-				log.Printf("submitted command: %s", cmd)
-			} else {
-				log.Printf("failed to submit command: %s", cmd)
-			}
+	for {
+		time.Sleep(time.Duration(3+rand.Intn(5)) * time.Second) // Random delay between 3 and 7 seconds
+		cmd := fmt.Sprintf("auto-cmd-%d", rand.Intn(10000))
+		if ok := server.Submit(cmd); ok {
+			log.Printf("submitted command: %s", cmd)
+		} else {
+			log.Printf("failed to submit command: %s", cmd)
 		}
-	}()
+	}
 }
