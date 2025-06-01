@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"pucrs/sd/raft"
 	"strconv"
@@ -33,6 +34,7 @@ func main() {
 	server.Serve(listen)
 
 	connectToPeers(server, peerAddrs)
+	randomlySubmitCommands(server)
 
 	close(ready)
 
@@ -92,4 +94,18 @@ func connectToPeers(server *raft.Server, peerIdsToAddrs map[int]string) {
 			}
 		}(id, addr)
 	}
+}
+
+func randomlySubmitCommands(server *raft.Server) {
+	go func() {
+		for {
+			time.Sleep(time.Duration(3+rand.Intn(5)) * time.Second) // Random delay between 3 and 7 seconds
+			cmd := fmt.Sprintf("auto-cmd-%d", rand.Intn(10000))
+			if ok := server.Submit(cmd); ok {
+				log.Printf("submitted command: %s", cmd)
+			} else {
+				log.Printf("failed to submit command: %s", cmd)
+			}
+		}
+	}()
 }

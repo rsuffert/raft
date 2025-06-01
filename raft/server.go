@@ -53,6 +53,18 @@ func NewServer(serverId int, peerIds []int, ready <-chan any, commitChan chan<- 
 	return s
 }
 
+// Submit sends a command to the ConsensusModule for processing. It returns true
+// if this server is the leader and therefore the command was submitted successfully,
+// or false if this server is not the leader.
+func (s *Server) Submit(command any) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cm == nil {
+		return false
+	}
+	return s.cm.Submit(command)
+}
+
 func (s *Server) Serve(listenAddr string) {
 	s.mu.Lock()
 	s.cm = NewConsensusModule(s.serverId, s.peerIds, s, s.ready, s.commitChan)
