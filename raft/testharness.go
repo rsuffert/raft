@@ -139,7 +139,7 @@ func (h *Harness) CheckSingleLeader() (int, int) {
 		leaderTerm := -1
 		for i := 0; i < h.n; i++ {
 			if h.connected[i] {
-				_, term, isLeader := h.cluster[i].cm.Report()
+				_, term, isLeader, _ := h.cluster[i].cm.Report()
 				if isLeader {
 					if leaderId < 0 {
 						leaderId = i
@@ -164,7 +164,7 @@ func (h *Harness) CheckSingleLeader() (int, int) {
 func (h *Harness) CheckNoLeader() {
 	for i := 0; i < h.n; i++ {
 		if h.connected[i] {
-			_, _, isLeader := h.cluster[i].cm.Report()
+			_, _, isLeader, _ := h.cluster[i].cm.Report()
 			if isLeader {
 				h.t.Fatalf("server %d leader; want none", i)
 			}
