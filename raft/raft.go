@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const DebugCM = 1
+const DebugCM = 0
 
 // CommitEntry is the data reported by Raft to the commit channel. Each commit
 // entry notifies the client that consensus was reached on a command and it can
@@ -131,10 +131,10 @@ func NewConsensusModule(id int, peerIds []int, server *Server, ready <-chan any,
 }
 
 // Report reports the state of this CM.
-func (cm *ConsensusModule) Report() (id int, term int, isLeader bool) {
+func (cm *ConsensusModule) Report() (id, term int, isLeader bool, logEntries []LogEntry) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	return cm.id, cm.currentTerm, cm.state == Leader
+	return cm.id, cm.currentTerm, cm.state == Leader, cm.log
 }
 
 // Submit submits a new command to the CM. This function doesn't block; clients

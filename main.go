@@ -15,6 +15,8 @@ import (
 	"github.com/avast/retry-go"
 )
 
+const logStateInterval time.Duration = 5 * time.Second
+
 func main() {
 	var id int
 	var peers string
@@ -52,10 +54,19 @@ func main() {
 	wg.Wait()
 	close(ready)
 
-	// begin submitting commands for consensus randomly and print those that are committed
 	go randomlySubmitCommands(server, id)
-	for entry := range commitChan {
-		log.Printf("committed: %+v\n", entry)
+
+	ticker := time.NewTicker(logStateInterval)
+	for {
+		select {
+		case <-ticker.C:
+			// log the state of the server periodically
+			id, term, isLeader, logEntries := server.Report()
+			log.Printf("server %d, term %d, isLeader: %t, log entries: %d", id, term, isLeader, len(logEntries))
+		case entry := <-commitChan:
+			// the consensus module has committed an entry
+			log.Printf("committed entry: %+v", entry)
+		}
 	}
 }
 
@@ -124,8 +135,6 @@ func randomlySubmitCommands(server *raft.Server, peerId int) {
 		cmd := fmt.Sprintf("auto-cmd-%d-%d", peerId, time.Now().UnixMilli())
 		if ok := server.Submit(cmd); ok {
 			log.Printf("submitted command: %s", cmd)
-		} else {
-			log.Printf("failed to submit command: %s", cmd)
 		}
 	}
 }

@@ -62,6 +62,12 @@ func (s *Server) Submit(command any) bool {
 	return s.cm.Submit(command)
 }
 
+func (s *Server) Report() (id, term int, isLeader bool, logEntries []LogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cm.Report()
+}
+
 func (s *Server) Serve(listenAddr string) {
 	s.mu.Lock()
 	s.cm = NewConsensusModule(s.serverId, s.peerIds, s, s.ready, s.commitChan)
