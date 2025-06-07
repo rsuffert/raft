@@ -42,7 +42,7 @@ type Server struct {
 
 	commitChan  chan<- CommitEntry
 	peerClients map[int]*rpc.Client
-	knownPeers  sync.Map // a map from the ID (int) to the address (*net.Addr) of known peers
+	knownPeers  sync.Map // a map from the ID (int) to the address (net.Addr) of known peers
 
 	ready <-chan any
 	quit  chan any
@@ -146,7 +146,7 @@ func (s *Server) ConnectToPeer(peerId int, addr net.Addr) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.knownPeers.Load(peerId); !ok {
-		s.knownPeers.Store(peerId, &addr)
+		s.knownPeers.Store(peerId, addr)
 	}
 	if s.peerClients[peerId] == nil {
 		client, err := rpc.Dial(addr.Network(), addr.String())
@@ -209,12 +209,12 @@ func (s *Server) reconnectToPeer(peerId int, maxRetries int) error {
 				return retry.Unrecoverable(fmt.Errorf("peer with ID %d is unknown", peerId))
 			}
 
-			peerAddr, ok := peerEntry.(*net.Addr)
+			peerAddr, ok := peerEntry.(net.Addr)
 			if !ok {
 				return retry.Unrecoverable(fmt.Errorf("peer with ID %d has an unexpected address format stored", peerId))
 			}
 
-			return s.ConnectToPeer(peerId, *peerAddr)
+			return s.ConnectToPeer(peerId, peerAddr)
 		},
 		retry.Attempts(uint(maxRetries)),
 		retry.Delay(2*time.Second),
