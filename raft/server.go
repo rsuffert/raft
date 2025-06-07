@@ -181,18 +181,19 @@ func (s *Server) Call(id int, serviceMethod string, args any, reply any) error {
 		return fmt.Errorf("call client %d after it's closed", id)
 	}
 
-	if err := peer.Call(serviceMethod, args, reply); err != nil {
+	err := peer.Call(serviceMethod, args, reply)
+	if err != nil {
 		log.Printf("peer %d is not responding - launching a thread to try to reconnect", id)
 		go func(peerId int, maxRetries int) {
-			if err := s.reconnectToPeer(id, maxRetries); err != nil {
-				log.Printf("failed to reconnect to peer %d, error %s", id, err)
+			if err := s.reconnectToPeer(peerId, maxRetries); err != nil {
+				log.Printf("failed to reconnect to peer %d, error %s", peerId, err)
 				return
 			}
-			log.Printf("successfully reconnected to peer %d!", id)
+			log.Printf("successfully reconnected to peer %d!", peerId)
 		}(id, maxReconnectRetries)
 	}
 
-	return nil
+	return err
 }
 
 // reconnectToPeer disconnects from the peer with the given ID if a connection exists
