@@ -6,6 +6,7 @@
 package raft
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -13,8 +14,13 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/avast/retry-go"
 )
+
+const maxReconnectRetries = 1000 // retry "indefinitely"
 
 // Server wraps a raft.ConsensusModule along with a rpc.Server that exposes its
 // methods as RPC endpoints. It also manages the peers of the Raft server. The
@@ -36,6 +42,7 @@ type Server struct {
 
 	commitChan  chan<- CommitEntry
 	peerClients map[int]*rpc.Client
+	knownPeers  sync.Map // a map from the ID (int) to the address (*net.Addr) of known peers
 
 	ready <-chan any
 	quit  chan any
@@ -138,6 +145,9 @@ func (s *Server) GetListenAddr() net.Addr {
 func (s *Server) ConnectToPeer(peerId int, addr net.Addr) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.knownPeers.Load(peerId); !ok {
+		s.knownPeers.Store(peerId, &addr)
+	}
 	if s.peerClients[peerId] == nil {
 		client, err := rpc.Dial(addr.Network(), addr.String())
 		if err != nil {
@@ -169,9 +179,55 @@ func (s *Server) Call(id int, serviceMethod string, args any, reply any) error {
 	// return an error.
 	if peer == nil {
 		return fmt.Errorf("call client %d after it's closed", id)
-	} else {
-		return peer.Call(serviceMethod, args, reply)
 	}
+
+	if err := peer.Call(serviceMethod, args, reply); err != nil {
+		log.Printf("peer %d is not responding - launching a thread to try to reconnect", id)
+		go func(peerId int, maxRetries int) {
+			if err := s.reconnectToPeer(id, maxRetries); err != nil {
+				log.Printf("failed to reconnect to peer %d, error %s", id, err)
+				return
+			}
+			log.Printf("successfully reconnected to peer %d!", id)
+		}(id, maxReconnectRetries)
+	}
+
+	return nil
+}
+
+// reconnectToPeer disconnects from the peer with the given ID if a connection exists
+// and keeps trying to reconnect with exponential backoff until the given maximum retries
+// are reached or an error different than connection refused is received. In such case,
+// this function will return a non-nil error.
+func (s *Server) reconnectToPeer(peerId int, maxRetries int) error {
+	s.DisconnectPeer(peerId)
+
+	err := retry.Do(
+		func() error {
+			peerEntry, ok := s.knownPeers.Load(peerId)
+			if !ok {
+				return retry.Unrecoverable(fmt.Errorf("peer with ID %d is unknown", peerId))
+			}
+
+			peerAddr, ok := peerEntry.(*net.Addr)
+			if !ok {
+				return retry.Unrecoverable(fmt.Errorf("peer with ID %d has an unexpected address format stored", peerId))
+			}
+
+			return s.ConnectToPeer(peerId, *peerAddr)
+		},
+		retry.Attempts(uint(maxRetries)),
+		retry.Delay(2*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(func(err error) bool {
+			return errors.Is(err, syscall.ECONNREFUSED)
+		}),
+		retry.OnRetry(func(n uint, err error) {
+			log.Printf("reconnect retry #%d failed: %s", n, err)
+		}),
+	)
+
+	return err
 }
 
 // RPCProxy is a pass-thru proxy server for ConsensusModule's RPC methods. It
