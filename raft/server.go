@@ -20,7 +20,10 @@ import (
 	"github.com/avast/retry-go"
 )
 
-const maxReconnectRetries = 1000 // retry "indefinitely"
+const (
+	maxReconnectRetries       = 1000 // retry "indefinitely"
+	reconnectRetriesDelaySecs = 5
+)
 
 // Server wraps a raft.ConsensusModule along with a rpc.Server that exposes its
 // methods as RPC endpoints. It also manages the peers of the Raft server. The
@@ -184,23 +187,23 @@ func (s *Server) Call(id int, serviceMethod string, args any, reply any) error {
 	err := peer.Call(serviceMethod, args, reply)
 	if err != nil {
 		log.Printf("peer %d is not responding - launching a thread to try to reconnect", id)
-		go func(peerId int, maxRetries int) {
-			if err := s.reconnectToPeer(peerId, maxRetries); err != nil {
+		go func(peerId int, maxRetries int, retriesDelaySecs int) {
+			if err := s.reconnectToPeer(peerId, maxRetries, retriesDelaySecs); err != nil {
 				log.Printf("failed to reconnect to peer %d, error %s", peerId, err)
 				return
 			}
 			log.Printf("successfully reconnected to peer %d!", peerId)
-		}(id, maxReconnectRetries)
+		}(id, maxReconnectRetries, reconnectRetriesDelaySecs)
 	}
 
 	return err
 }
 
 // reconnectToPeer disconnects from the peer with the given ID if a connection exists
-// and keeps trying to reconnect with exponential backoff until the given maximum retries
-// are reached or an error different than connection refused is received. In such case,
-// this function will return a non-nil error.
-func (s *Server) reconnectToPeer(peerId int, maxRetries int) error {
+// and keeps trying to reconnect periodically (according to retriesDelaysSecs) until
+// the given maximum retries are reached or an error different than connection refused
+// is received. In such case, this function will return a non-nil error.
+func (s *Server) reconnectToPeer(peerId int, maxRetries int, retriesDelaySecs int) error {
 	s.DisconnectPeer(peerId)
 
 	err := retry.Do(
@@ -218,8 +221,8 @@ func (s *Server) reconnectToPeer(peerId int, maxRetries int) error {
 			return s.ConnectToPeer(peerId, peerAddr)
 		},
 		retry.Attempts(uint(maxRetries)),
-		retry.Delay(2*time.Second),
-		retry.DelayType(retry.BackOffDelay),
+		retry.Delay(time.Duration(retriesDelaySecs)*time.Second),
+		retry.DelayType(retry.FixedDelay),
 		retry.RetryIf(func(err error) bool {
 			return errors.Is(err, syscall.ECONNREFUSED)
 		}),
