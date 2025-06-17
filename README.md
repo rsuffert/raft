@@ -141,7 +141,7 @@ az vm create \
     --public-ip-sku Standard
 ```
 
-Note down the public and private IP addresses for each VM created.
+Note down the private IP addresses for each VM created.
 
 #### Deploying and running the RAFT servers
 
@@ -174,6 +174,8 @@ cd raft
 
 Finally, run the RAFT application on the VM.
 
+**NOTICE:** Be sure to use the **internal IP addresses** of the cluster here, *not* the public ones.
+
 ```bash
 nohup go run main.go \
     -id=0 \
@@ -187,6 +189,14 @@ After the RAFT nodes start running, you can check the logs for each cluster conn
 ```bash
 tail -f raft.log
 ```
+
+Since RAFT will be running on the background, you may use the PID returned by the `nohup` command to kill the RAFT process running on the current node with this command:
+
+```bash
+kill -9 <pid>
+```
+
+Then, you can observe the behavior on the other nodes of the system and eventually recover the failing node by re-running the `nohup` command above.
 
 #### Stopping the infrastructure (IMPORTANT!)
 
