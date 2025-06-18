@@ -91,7 +91,7 @@ az network vnet create \
     --subnet-prefix 10.0.0.0/24
 ```
 
-Next, we create a Network Security Group (NSG) and set up security rules for our three RAFT clusters.
+Next, we create a Network Security Group (NSG) and set up security rules for our three RAFT processes.
 
 ```bash
 # Create NSG
@@ -110,7 +110,7 @@ az network nsg rule create \
     --access Allow \
     --direction Inbound
 
-# Allow RAFT communication ports (e.g., 9000-9002 for our 3-node cluster)
+# Allow RAFT communication ports (we'll make our processes listen on port 9000)
 # This rule allows traffic from within the VNet on these ports.
 az network nsg rule create \
     --resource-group MyRaftCloudRG \
@@ -119,7 +119,7 @@ az network nsg rule create \
     --protocol Tcp \
     --priority 1010 \
     --source-address-prefixes VirtualNetwork \
-    --destination-port-ranges 9000-9002 \
+    --destination-port-ranges 9000 \
     --access Allow \
     --direction Inbound
 ```
@@ -174,17 +174,17 @@ cd raft
 
 Finally, run the RAFT application on the VM.
 
-**NOTICE:** Be sure to use the **internal IP addresses** of the cluster here, *not* the public ones.
+**NOTICE:** Be sure to use the **internal IP addresses** of the process here, *not* the public ones.
 
 ```bash
 nohup go run main.go \
-    -id=0 \
-    -listen=<this-cluster-ip:port> \
-    -peers=<this-cluster-peers> \
+    -id=<sequential-id> \
+    -listen=<process-private-ip>:9000 \
+    -peers=<peer-sequential-id>=<peer-private-ip>:9000,[peer-sequential-id>=<peer-private-ip>:9000] \
     > raft.log 2>&1 &
 ```
 
-After the RAFT nodes start running, you can check the logs for each cluster connected to its VM with the following command.
+After the RAFT nodes start running, you can check the logs for each process connected to its VM with the following command.
 
 ```bash
 tail -f raft.log
