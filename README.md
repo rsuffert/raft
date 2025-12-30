@@ -1,6 +1,6 @@
 # :rowboat: Raft
 
-This is an adaption of the original code for a Distributed Systems course assignment. The `raft` repository contains the incremental implementation of the Raft consensus algoritm describted in the below blog posts:
+This is an adaption of the original code to make it runnable on an Azure cluster. The `raft` repository contains the incremental implementation of the Raft consensus algoritm describted in the below blog posts:
 
 * [Part 0: Introduction](https://eli.thegreenplace.net/2020/implementing-raft-part-0-introduction/)
 * [Part 1: Elections](https://eli.thegreenplace.net/2020/implementing-raft-part-1-elections/)
